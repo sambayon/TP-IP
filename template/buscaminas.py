@@ -81,9 +81,26 @@ def calcular_numeros(tablero: list[list[int]]) -> None:
 
 
 def crear_juego(filas:int, columnas:int, minas:int) -> EstadoJuego:
+
     return {}
 
+def estructura_y_tipos_validos(estado: EstadoJuego) -> bool:
+    tipos_validos = ["filas", "columnas", "minas", "tablero", "juego_terminado", "tablero_visible"]
 
+  
+    
+    estado_minas = estado["minas"]
+    estado_tablero = estado["tablero"]
+    estado_tablero_visible = estado["tablero_visible"]
+    
+    estado_filas = estado["filas"]
+    if type(estado_filas) != int or estado_filas <= 0:
+        return False
+    
+    estado_columnas = estado["columnas"]
+    if type(estado_columnas) != int or estado_columnas <= 0:
+        return False
+    
 def obtener_estado_tablero_visible(estado: EstadoJuego) -> list[list[str]]:
     return [[]]
 
