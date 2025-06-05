@@ -64,7 +64,7 @@ def calcular_numeros(tablero: list[list[int]]) -> None:
 
     for i in range(filas):
         for j in range(columnas):
-            if tablero[i][j] == -1:
+            if tablero_og[i][j] == -1:
                 continue
             contador = 0
             marcas = [-1, 0, 1]
@@ -82,8 +82,35 @@ def calcular_numeros(tablero: list[list[int]]) -> None:
 
 
 def crear_juego(filas:int, columnas:int, minas:int) -> EstadoJuego:
+    if type(filas) != int or filas <= 0:
+        return {}
+    if type(columnas) != int or columnas <= 0:
+        return {}
+    if minas <= 0 or minas >= filas * columnas:
+        return {}
+    
+    tablero = colocar_minas(filas, columnas, minas)
+    calcular_numeros(tablero)
 
-    return {}
+    tablero_visible = []
+    for i in range(filas):
+        fila_visible = []
+        for j in range(columnas):
+            fila_visible.append(VACIO)
+        tablero_visible.append(fila_visible)
+    
+    estado = {
+        "filas": filas,
+        "columnas": columnas,
+        "minas": minas,
+        "tablero": tablero,
+        "juego_terminado": False,
+        "tablero_visible": tablero_visible
+    }
+
+    if not estado_valido(estado):
+        return {}
+    return estado
 
 def estructura_y_tipos_validos(estado: EstadoJuego) -> bool:
     claves = ["filas", "columnas", "minas", "tablero", "juego_terminado", "tablero_visible"]
@@ -150,8 +177,11 @@ def son_matriz_y_misma_dimension(t1: list[list[Any]], t2: list[list[Any]]) -> bo
     return True
 
 def estado_valido(estado: EstadoJuego) -> bool:
+    if estado == {}:
+        return False
     if not estructura_y_tipos_validos(estado):
         return False
+    
     contador = 0
     for fila in estado["tablero"]:
         for cell in fila:
@@ -159,9 +189,10 @@ def estado_valido(estado: EstadoJuego) -> bool:
                 contador += 1
     if contador != estado["minas"]:
         return False
-    if not (todas_celdas_seguras_descubiertas(estado["tablero"], estado["tablero_visible"]) or hay_bomba_visible(estado["tablero_visible"])): 
-        return False
-    if not estado.get("juego terminado") != (todas_celdas_seguras_descubiertas(estado["tablero"], estado["tablero_visible"]) or hay_bomba_visible(estado["tablero_visible"])):
+    
+    fin_de_juego = todas_celdas_seguras_descubiertas(estado["tablero"], estado["tablero_visible"]) or hay_bomba_visible(estado["tablero_visible"])
+    
+    if estado.get("juego_terminado") != fin_de_juego:
         return False
     if not son_bombas_esperadas(estado):
         return False
@@ -183,6 +214,8 @@ def tablero_esperado(estado: EstadoJuego) -> bool:
                 fila_basica.append(-1)
             else:
                 fila_basica.append(0)
+        tablero_basico.append(fila_basica)
+
     tablero_calculado = calcular_numeros(tablero_basico)
 
     for i in range(filas):
@@ -206,7 +239,7 @@ def visibles_esperadas(estado: EstadoJuego) -> bool:
                     return False
     return True
 
-def son_bombas_esperadas(estado: EstadoJuego) -> int:
+def son_bombas_esperadas(estado: EstadoJuego) -> bool:
     for i in range(estado["filas"]):
         for j in range(estado["columnas"]):
             if estado["tablero_visible"][i][j] == BOMBA and estado["tablero"][i][j] != -1:
@@ -221,18 +254,108 @@ def hay_bomba_visible(tablero_visible: list[list[str]]) -> bool:
     return False
 
 def todas_celdas_seguras_descubiertas(tablero: list[list[int]], tablero_visible: list[list[str]]) -> bool:
-    return 1
+    filas = longitud(tablero)
+    columnas = longitud(tablero[0])
+
+    for i in range(filas):
+        for j in range(columnas):
+            cell = tablero[i][j]
+            visible = tablero_visible[i][j]
+
+            if cell != -1:  
+                if visible != str(cell):
+                    return False
+            else:
+                if visible not in [VACIO, BANDERA]:
+                    return False
+    return True
 
 def obtener_estado_tablero_visible(estado: EstadoJuego) -> list[list[str]]:
-    return [[]]
+    copia_estado = []
+    for fila in estado["tablero_visible"]:
+        fila_copia = []
+        for cell in fila:
+            fila_copia.append(cell)
+        copia_estado.append(fila_copia)
+    return copia_estado
 
 
 def marcar_celda(estado: EstadoJuego, fila: int, columna: int) -> None:
-    return
+    if estado_valido(estado):
+        if fila >= 0:
+            if fila < estado["filas"]:
+                if columna >= 0:
+                    if columna < estado["columnas"]:
+                       if not estado["juego_terminado"]:
+                           celda = estado["tablero_visible"][fila][columna]
+                           if celda == VACIO:
+                               estado["tablero_visible"][fila][columna] = BANDERA
+                           elif celda == BANDERA:
+                               estado["tablero_visible"][fila][columna] = VACIO
+                    
 
 
 def descubrir_celda(estado: EstadoJuego, fila: int, columna: int) -> None:
-    return
+    if estado_valido(estado):
+       if not estado["juego_terminado"]:
+           if estado["tablero_visible"][fila][columna] == VACIO:
+               if estado["tablero"][fila][columna] == -1:
+                   estado["juego_terminado"] = True
+                   for i in range(estado["filas"]):
+                       for j in range(estado["columnas"]):
+                           if estado["tablero"][i][j] == -1:
+                               estado["tablero_visible"][i][j] = BOMBA
+               else:
+                   descubiertas = []
+                   por_descubrir = []
+                   por_descubrir.append((fila, columna))
+                   while len(por_descubrir) > 0:
+                       posicion = por_descubrir.pop(0)
+                       fila_actual = posicion[0]
+                       columna_actual = posicion[1]
+
+                       ya_descubierta = False
+
+                       for par in descubiertas:
+                           if par[0] == fila_actual and par[1] == columna_actual:
+                                 ya_descubierta = True
+                       if not ya_descubierta:
+                           descubiertas.append((fila_actual, columna_actual))
+                    
+                           if estado["tablero_visible"][fila_actual][columna_actual] == VACIO:
+                               val = estado["tablero"][fila_actual][columna_actual]
+                               estado["tablero_visible"][fila_actual][columna_actual] = str(val)
+                               if val == 0:
+                                   i = fila_actual - 1
+                                   while i <= fila_actual + 1:
+                                       j = columna_actual - 1
+                                       while j <= columna_actual + 1:
+                                           if 0 <= i < estado["filas"] and 0 <= j < estado["columnas"]:
+                                               if estado["tablero_visible"][i][j] == VACIO:
+                                                   ya_descubierta_adyacente = False
+                                                   for par in descubiertas:
+                                                       if par[0] == i and par[1] == j:
+                                                           ya_descubierta_adyacente = True
+                                                   por_descubrir_todavia = False
+                                                   for par in por_descubrir:
+                                                       if par[0] == i and par[1] == j:
+                                                           por_descubrir_todavia = True
+                                                   if not ya_descubierta_adyacente and not por_descubrir_todavia:
+                                                         por_descubrir.append((i, j))
+                                           j += 1
+                                       i += 1
+                                   todas_descubiertas = True
+                                   i = 0
+                                   while i < estado["filas"]:
+                                       j = 0
+                                       while j < estado["columnas"]:
+                                           if estado["tablero_visible"][i][j] == VACIO and estado["tablero"][i][j] != -1:
+                                               todas_descubiertas = False
+                                           j += 1
+                                       i += 1
+                                   if todas_descubiertas:
+                                       estado["juego_terminado"] = True
+            
 
 
 def verificar_victoria(estado: EstadoJuego) -> bool:
