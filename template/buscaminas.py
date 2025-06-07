@@ -51,8 +51,8 @@ def pertenece(a: int, lista: list[Any]) -> bool:
     return False
 
 def calcular_numeros(tablero: list[list[int]]) -> None:
-    filas = longitud(tablero)
-    columnas = longitud(tablero[0])
+    filas = len(tablero)
+    columnas = len(tablero[0])
 
     tablero_og = []
     for fila in tablero:
@@ -60,11 +60,17 @@ def calcular_numeros(tablero: list[list[int]]) -> None:
         for i in fila:
             fila_nueva.append(i)
         tablero_og.append(fila_nueva)
-        
+
+    tablero_calculado = []
+    for fila in tablero_og:
+        fila_copia = []
+        for celda in fila:
+            fila_copia.append(celda)
+        tablero_calculado.append(fila_copia)
 
     for i in range(filas):
         for j in range(columnas):
-            if tablero_og[i][j] == -1:
+            if tablero_og[i][j] == -1:  # -1 es mina
                 continue
             contador = 0
             marcas = [-1, 0, 1]
@@ -77,7 +83,9 @@ def calcular_numeros(tablero: list[list[int]]) -> None:
                     if 0 <= fila_vecina < filas and 0 <= columna_vecina < columnas:
                         if tablero_og[fila_vecina][columna_vecina] == -1:
                             contador += 1    
-            tablero[i][j] = contador
+            tablero_calculado[i][j] = contador
+
+    return tablero_calculado
 #Es un Inout, me costó
 
 
@@ -359,16 +367,192 @@ def descubrir_celda(estado: EstadoJuego, fila: int, columna: int) -> None:
 
 
 def verificar_victoria(estado: EstadoJuego) -> bool:
+    if not estado_valido(estado):
+        return False
+    
+    tablero = estado["tablero"]
+    tablero_visible = estado["tablero_visible"]
+
+    i = 0
+    for i in range(estado["filas"]):
+        for j in range(estado["columnas"]):
+            if tablero[i][j] != -1:
+                if tablero_visible[i][j] == VACIO or tablero_visible[i][j] == BOMBA:
+                    return False
+
     return True
 
 
 def reiniciar_juego(estado: EstadoJuego) -> None:
-    return
+    estado_filas = estado["filas"]
+    estado_columnas = estado["columnas"]
+    estado_minas = estado["minas"]
+
+    estado["juego_terminado"] = False
+
+    tablero_nuevo = []
+    for i in range(estado_filas):
+        fila_nueva = []
+        for j in range(estado_columnas):
+            fila_nueva.append(0)
+        tablero_nuevo.append(fila_nueva)
+
+    minas_colocadas = 0
+    while minas_colocadas < estado_minas:
+        filas = random.randint(0, estado_filas - 1)
+        columnas = random.randint(0, estado_columnas - 1)
+        if tablero_nuevo[filas][columnas] != -1:
+            tablero_nuevo[filas][columnas] = -1
+            minas_colocadas += 1
+    
+    for i in range(estado_filas):
+        for j in range(estado_columnas):
+            if tablero_nuevo[i][j] != -1:
+                contador = 0
+                for x in [-1, 0, 1]:
+                    for y in [-1, 0, 1]:
+                        if x == 0 and y == 0:
+                            continue
+                        fila_vecina = i + x
+                        columna_vecina = j + y
+                        if 0 <= fila_vecina < estado_filas and 0 <= columna_vecina < estado_columnas:
+                            if tablero_nuevo[fila_vecina][columna_vecina] == -1:
+                                contador += 1
+                tablero_nuevo[i][j] = contador
+    estado["tablero"] = tablero_nuevo
+    tablero_visible_nuevo = []
+    for i in range(estado_filas):
+        fila_visible_nueva = []
+        for j in range(estado_columnas):
+            fila_visible_nueva.append(VACIO)
+        tablero_visible_nuevo.append(fila_visible_nueva)
+    estado["tablero_visible"] = tablero_visible_nuevo
 
 
 def guardar_estado(estado: EstadoJuego, ruta_directorio: str) -> None:
-    return
+    if (not estado["juego_terminado"]) and os.path.exists(ruta_directorio):
+        estado_filas = estado["filas"]
+        estado_columnas = estado["columnas"]
+        tablero_path = os.path.join(ruta_directorio, "tablero.txt")
+        tablero_file = open(tablero_path, "w")
+        for i in range(estado_filas):
+            valores = []
+            for j in range(estado_columnas):
+                val = estado["tablero"][i][j]
+                valores.append(str(val))
+            linea = ",".join(valores)
+            tablero_file.write(linea + "\n")
+        tablero_file.close()
+
+        tablero_visible_path = os.path.join(ruta_directorio, "tablero_visible.txt")
+        tablero_visible_file = open(tablero_visible_path, "w")
+        for i in range(estado_filas):
+            valores = []
+            for j in range(estado_columnas):
+                val = estado["tablero_visible"][i][j]
+                if val == BANDERA:
+                    valores.append("*")
+                elif val == VACIO:
+                    valores.append("?")
+                else:
+                    valores.append(val)
+            linea = ",".join(valores)
+            tablero_visible_file.write(linea + "\n")    
+        tablero_visible_file.close()
 
 
 def cargar_estado(estado: EstadoJuego, ruta_directorio: str) -> bool:
-    return False
+    if not existe_archivo(ruta_directorio, "tablero.txt") or not existe_archivo(ruta_directorio, "tablero_visible.txt"):
+        return False
+
+    # Cargar líneas de tablero.txt
+    tablero_path = os.path.join(ruta_directorio, "tablero.txt")
+    tablero_lines = []
+    with open(tablero_path, "r") as tablero_file:
+        for line in tablero_file:
+            line = line.strip()
+            if longitud(line) > 0:
+                tablero_lines.append(line)
+
+    # Cargar líneas de tablero_visible.txt
+    tablero_visible_path = os.path.join(ruta_directorio, "tablero_visible.txt")
+    tablero_visible_lines = []
+    with open(tablero_visible_path, "r") as tablero_visible_file:
+        for line in tablero_visible_file:
+            line = line.strip()
+            if longitud(line) > 0:
+                tablero_visible_lines.append(line)
+
+    filas = longitud(tablero_lines)
+    if filas == 0 or longitud(tablero_visible_lines) != filas:
+        return False
+
+    columnas = longitud(tablero_lines[0].split(","))
+    for line in tablero_lines:
+        if longitud(line.split(",")) != columnas:
+            return False
+    for line in tablero_visible_lines:
+        if longitud(line.split(",")) != columnas:
+            return False
+
+    # Reconstruir tablero
+    tablero = []
+    minas_cantidad = 0
+    numeros_string = ["-1", "0", "1", "2", "3", "4", "5", "6", "7", "8"]
+    for i in range(filas):
+        fila_valores = tablero_lines[i].split(",")
+        fila = []
+        for val in fila_valores:
+            if val not in numeros_string:
+                return False
+            if val == "-1":
+                fila.append(-1)
+                minas_cantidad += 1
+            else:
+                fila.append(int(val))
+        tablero.append(fila)
+
+    if minas_cantidad == 0:
+        return False
+
+    # Verificar consistencia de las pistas numéricas
+    for i in range(filas):
+        for j in range(columnas):
+            if tablero[i][j] != -1:
+                minas_adyacentes = 0
+                for x in [-1, 0, 1]:
+                    for y in [-1, 0, 1]:
+                        if x == 0 and y == 0:
+                            continue
+                        xx = i + x
+                        yy = j + y
+                        if 0 <= xx < filas and 0 <= yy < columnas:
+                            if tablero[xx][yy] == -1:
+                                minas_adyacentes += 1
+                if tablero[i][j] != minas_adyacentes:
+                    return False
+    tablero_visible = []
+    for i in range(filas):
+        fila_valores = tablero_visible_lines[i].split(",")
+        fila_visible = []
+        for j in range(columnas):
+            val = fila_valores[j]
+            if val == "*":
+                fila_visible.append(BANDERA)
+            elif val == "?":
+                fila_visible.append(VACIO)
+            elif val in numeros_string:
+                if int(val) != tablero[i][j]:
+                    return False
+                fila_visible.append(int(val))
+            else:
+                return False
+        tablero_visible.append(fila_visible)
+    estado["filas"] = filas
+    estado["columnas"] = columnas
+    estado["minas"] = minas_cantidad
+    estado["tablero"] = tablero
+    estado["tablero_visible"] = tablero_visible
+    estado["juego_terminado"] = False
+
+    return estado_valido(estado)
